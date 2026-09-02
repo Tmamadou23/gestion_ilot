@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Plateforme de gestion et de suivi des souscripteurs de lots — suivi des souscriptions, des versements et des soldes." />
+  <title>GestiLot — Suivi des Souscripteurs</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       ÉCRAN DE CONNEXION
+       ============================================================ -->
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+        </div>
+        <h1>GestiLot</h1>
+        <p>Gestion &amp; suivi des souscripteurs</p>
+      </div>
+
+      <form id="login-form" class="login-form" autocomplete="off">
+        <div class="field">
+          <label for="login-user">Identifiant</label>
+          <input type="text" id="login-user" name="login-user" placeholder="admin" required />
+        </div>
+        <div class="field">
+          <label for="login-pass">Mot de passe</label>
+          <input type="password" id="login-pass" name="login-pass" placeholder="••••••••" required />
+        </div>
+        <p id="login-error" class="login-error"></p>
+        <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
+      </form>
+
+      
+    </div>
+  </div>
+
+  <!-- ============================================================
+       APPLICATION
+       ============================================================ -->
+  <div id="app" class="app hidden">
+
+    <!-- ------------------- BARRE LATÉRALE ------------------- -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+        </div>
+        <span>GestiLot</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-ico">▦</span> Tableau de bord
+        </button>
+        <button class="nav-item" data-view="souscripteurs">
+          <span class="nav-ico">👥</span> Souscripteurs
+        </button>
+        <button class="nav-item" data-view="ajouter">
+          <span class="nav-ico">＋</span> Nouveau souscripteur
+        </button>
+        <button class="nav-item" data-view="versements">
+          <span class="nav-ico">💳</span> Versements
+        </button>
+        <button class="nav-item" data-view="lots">
+          <span class="nav-ico">🧱</span> Lots
+        </button>
+        <button class="nav-item" data-view="rapports">
+          <span class="nav-ico">📊</span> Rapports
+        </button>
+        <button class="nav-item" data-view="parametres">
+          <span class="nav-ico">⚙️</span> Paramètres
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span id="sidebar-user">—</span>
+          <button id="btn-logout" class="btn btn-ghost btn-sm">Déconnexion</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ------------------- ZONE PRINCIPALE ------------------- -->
+    <div class="main-area">
+      <!-- Barre supérieure -->
+      <header class="topbar">
+        <button id="btn-menu" class="btn btn-icon only-mobile" aria-label="Menu">☰</button>
+        <div class="search-box">
+          <span class="search-ico">🔍</span>
+          <input type="search" id="global-search" placeholder="Rechercher par nom, prénom ou code…" autocomplete="off" />
+          <button id="search-clear" class="search-clear hidden" aria-label="Effacer">✕</button>
+        </div>
+        <div class="topbar-right">
+          <span id="topbar-date" class="topbar-date"></span>
+          <span id="topbar-user" class="topbar-user"></span>
+        </div>
+      </header>
+
+      <!-- Résultats instantanés de la recherche -->
+      <div id="search-results" class="search-results hidden"></div>
+
+      <!-- ------------------- PAGES ------------------- -->
+      <main class="content">
+
+        <!-- ===== TABLEAU DE BORD ===== -->
+        <section id="view-dashboard" class="view active">
+          <div class="page-head">
+            <div>
+              <h2>Tableau de bord</h2>
+              <p class="muted">Vue d'ensemble des souscriptions et des paiements.</p>
+            </div>
+            <button class="btn btn-primary" data-go="ajouter">＋ Nouveau souscripteur</button>
+          </div>
+
+          <div id="stat-cards" class="stat-grid"></div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head">
+                <h3>Évolution des paiements</h3>
+                <!-- Légende -->
+                <div class="legend">
+                  <span class="legend-item"><span class="dot dot-verse"></span>Versé</span>
+                  <span class="legend-item"><span class="dot dot-reste"></span>Restant</span>
+                </div>
+              </div>
+              <div id="paiement-chart" class="chart"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Souscripteurs par statut</h3></div>
+              <div id="statut-chart" class="donut-wrap"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== SOUSCRIPTEURS ===== -->
+        <section id="view-souscripteurs" class="view">
+          <div class="page-head">
+            <div>
+              <h2>Souscripteurs</h2>
+              <p class="muted"><span id="count-souscripteurs">0</span> souscripteur(s) enregistré(s).</p>
+            </div>
+            <button class="btn btn-primary" data-go="ajouter">＋ Nouveau souscripteur</button>
+          </div>
+
+          <!-- Filtres -->
+          <div class="filters card">
+            <div class="filter-group">
+              <label class="filter-label">Statut</label>
+              <div class="segmented" id="filter-statut">
+                <button class="seg-btn active" data-statut="all">Tous</button>
+                <button class="seg-btn" data-statut="soldé">Soldés</button>
+                <button class="seg-btn" data-statut="en cours">En cours</button>
+                <button class="seg-btn" data-statut="partiel">Partiel</button>
+                <button class="seg-btn" data-statut="non payé">Non payé</button>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Période d'adhésion</label>
+              <div class="date-pair">
+                <input type="date" id="filter-date-from" title="Du" />
+                <span>au</span>
+                <input type="date" id="filter-date-to" title="Au" />
+              </div>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Tri</label>
+              <select id="sort-select">
+                <option value="nom-asc">Nom (A → Z)</option>
+                <option value="nom-desc">Nom (Z → A)</option>
+                <option value="montant-desc">Prix total ↓</option>
+                <option value="montant-asc">Prix total ↑</option>
+                <option value="reste-desc">Reste à payer ↓</option>
+                <option value="reste-asc">Reste à payer ↑</option>
+                <option value="date-desc">Adhésion récente</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card table-card">
+            <div class="table-scroll">
+              <table id="souscripteurs-table" class="table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Nom &amp; prénom</th>
+                    <th class="num">Lots</th>
+                    <th class="num">Superficie</th>
+                    <th class="num">Prix total</th>
+                    <th class="num">Versé</th>
+                    <th class="num">Reste</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="souscripteurs-tbody"></tbody>
+              </table>
+            </div>
+            <div id="table-empty" class="empty-state hidden">
+              <p>📭 <strong>Aucun souscripteur trouvé.</strong></p>
+              <p class="muted">Vérifiez le nom, le code ou les filtres saisis.</p>
+            </div>
+            <div id="pagination" class="pagination"></div>
+          </div>
+        </section>
+
+        <!-- ===== AJOUTER / MODIFIER ===== -->
+        <section id="view-ajouter" class="view">
+          <div class="page-head">
+            <div>
+              <h2 id="form-title">Nouveau souscripteur</h2>
+              <p class="muted" id="form-subtitle">Renseignez les informations du souscripteur.</p>
+            </div>
+            <button class="btn btn-ghost" data-go="souscripteurs">← Retour à la liste</button>
+          </div>
+
+          <div class="card form-card">
+            <form id="subscriber-form" class="form" autocomplete="off">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="f-nom">Nom *</label>
+                  <input type="text" id="f-nom" placeholder="ex. TRAORÉ" required />
+                </div>
+                <div class="field">
+                  <label for="f-prenom">Prénom *</label>
+                  <input type="text" id="f-prenom" placeholder="ex. Mamadou" required />
+                </div>
+                <div class="field">
+                  <label for="f-code">Code unique *</label>
+                  <input type="text" id="f-code" placeholder="ex. LOT-001" required />
+                  <small class="hint">Génération : <code id="f-code-suggest">LOT-000</code> <button type="button" class="btn btn-xs btn-ghost" id="f-code-auto">Auto</button></small>
+                </div>
+                <div class="field">
+                  <label for="f-date">Date d'adhésion *</label>
+                  <input type="date" id="f-date" required />
+                </div>
+                <div class="field">
+                  <label for="f-lots">Nombre de lots *</label>
+                  <input type="number" id="f-lots" min="1" value="1" required />
+                </div>
+                <div class="field">
+                  <label for="f-superficie">Superficie (m²)</label>
+                  <input type="number" id="f-superficie" min="0" step="0.01" placeholder="ex. 600" />
+                </div>
+                <div class="field">
+                  <label for="f-prix">Prix unitaire (FCFA) *</label>
+                  <input type="number" id="f-prix" min="0" step="1000" placeholder="ex. 1000000" required />
+                </div>
+                <div class="field">
+                  <label>Versement initial (optionnel)</label>
+                  <input type="number" id="f-verse-initial" min="0" step="1000" placeholder="0" />
+                </div>
+              </div>
+
+              <!-- Aperçu calculé en temps réel -->
+              <div class="preview-box">
+                <div class="preview-item"><span>Prix total</span><strong id="pv-total">0 FCFA</strong></div>
+                <div class="preview-item"><span>Versé</span><strong id="pv-verse">0 FCFA</strong></div>
+                <div class="preview-item"><span>Reste à payer</span><strong id="pv-reste">0 FCFA</strong></div>
+                <div class="preview-item"><span>Statut</span><span id="pv-statut" class="badge badge-en-cours">En cours</span></div>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" class="btn btn-ghost" id="btn-cancel-form">Annuler</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-form">Enregistrer le souscripteur</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- ===== DÉTAIL / FICHE ===== -->
+        <section id="view-detail" class="view">
+          <div class="page-head">
+            <div>
+              <button class="btn btn-ghost" data-go="souscripteurs">← Retour à la liste</button>
+              <h2 id="detail-title">Fiche souscripteur</h2>
+            </div>
+          </div>
+
+          <!-- Boutons d'action de la fiche -->
+          <div class="card action-bar">
+            <button class="btn btn-primary" id="btn-add-payment">＋ Ajouter un versement</button>
+            <button class="btn btn-ghost" id="btn-edit-subscriber">✏️ Modifier</button>
+            <button class="btn btn-ghost" id="btn-delete-subscriber">🗑 Supprimer</button>
+            <button class="btn btn-ghost" id="btn-print-fiche">🖨 Imprimer la fiche</button>
+            <button class="btn btn-ghost" id="btn-export-pdf">⬇ Export PDF</button>
+          </div>
+
+          <div id="detail-body"></div>
+        </section>
+
+        <!-- ===== VERSEMENTS ===== -->
+        <section id="view-versements" class="view">
+          <div class="page-head">
+            <div>
+              <h2>Versements</h2>
+              <p class="muted">Historique global des paiements enregistrés.</p>
+            </div>
+            <button class="btn btn-primary" data-go="souscripteurs">+ Enregistrer un versement</button>
+          </div>
+          <div class="card table-card">
+            <div class="table-scroll">
+              <table id="versements-table" class="table">
+                <thead>
+                  <tr>
+                    <th>N°</th>
+                    <th>Souscripteur</th>
+                    <th>Code</th>
+                    <th class="num">Montant</th>
+                    <th>Date</th>
+                    <th>Mode</th>
+                    <th>Observation</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="versements-tbody"></tbody>
+              </table>
+            </div>
+            <div id="versements-empty" class="empty-state hidden"><p>📭 Aucun versement enregistré.</p></div>
+          </div>
+        </section>
+
+        <!-- ===== LOTS ===== -->
+        <section id="view-lots" class="view">
+          <div class="page-head">
+            <div>
+              <h2>Lots</h2>
+              <p class="muted">Répartition des lots souscrits.</p>
+            </div>
+          </div>
+          <div class="stat-grid mini" id="lots-stats"></div>
+          <div class="card table-card">
+            <div class="table-scroll">
+              <table id="lots-table" class="table">
+                <thead>
+                  <tr>
+                    <th>N° lot</th>
+                    <th>Souscripteur</th>
+                    <th>Code</th>
+                    <th class="num">Superficie</th>
+                    <th class="num">Prix unitaire</th>
+                    <th class="num">Prix</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="lots-tbody"></tbody>
+              </table>
+            </div>
+            <div id="lots-empty" class="empty-state hidden"><p>📭 Aucun lot enregistré.</p></div>
+          </div>
+        </section>
+
+        <!-- ===== RAPPORTS ===== -->
+        <section id="view-rapports" class="view">
+          <div class="page-head">
+            <div>
+              <h2>Rapports &amp; Export</h2>
+              <p class="muted">Exportez les données de la plateforme.</p>
+            </div>
+          </div>
+          <div class="card report-card">
+            <h3>Export des données</h3>
+            <p class="muted">Choisissez le format d'export des données des souscripteurs.</p>
+            <div class="report-actions">
+              <button class="btn btn-primary" id="btn-export-csv">⬇ Export Excel / CSV</button>
+              <button class="btn btn-ghost" id="btn-export-json">⬇ Export JSON</button>
+              <button class="btn btn-ghost" id="btn-export-print">🖨 Imprimer le rapport</button>
+            </div>
+          </div>
+          <div class="card report-card">
+            <h3>Synthese financière</h3>
+            <div id="report-summary" class="report-summary"></div>
+          </div>
+        </section>
+
+        <!-- ===== PARAMÈTRES ===== -->
+        <section id="view-parametres" class="view">
+          <div class="page-head">
+            <div>
+              <h2>Paramètres</h2>
+              <p class="muted">Gérez votre espace et vos données.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Base de données (Cloud — Supabase)</h3>
+            <p class="muted">Activez une base de données centralisée pour <strong>partager les données entre tous les appareils</strong>. Sans configuration, les données restent locales au navigateur.</p>
+            <form id="db-form" class="form form-inline" autocomplete="off">
+              <div class="field"><label for="db-url">URL du projet Supabase</label><input type="text" id="db-url" placeholder="https://xxxx.supabase.co" /></div>
+              <div class="field"><label for="db-anon">Clé anon (public)</label><input type="text" id="db-anon" placeholder="eyJhbGciOi..." /></div>
+              <button type="submit" class="btn btn-primary">Connecter la base</button>
+            </form>
+            <p class="hint" id="db-status" style="margin-top:12px">Mode local — les données restent dans ce navigateur.</p>
+            <div class="report-actions">
+              <button class="btn btn-ghost" id="btn-db-local" type="button">Utiliser le mode local</button>
+              <button class="btn btn-ghost" id="btn-db-push">⬆ Publier le local vers le cloud</button>
+              <button class="btn btn-ghost" id="btn-db-pull">⬇ Charger le cloud dans l'app</button>
+              <button class="btn btn-ghost" id="btn-db-api">📄 Voir la démarche SQL</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Compte administrateur</h3>
+            <form id="settings-form" class="form form-inline" autocomplete="off">
+              <div class="field"><label for="s-user">Identifiant</label><input type="text" id="s-user" /></div>
+              <div class="field"><label for="s-pass">Mot de passe</label><input type="password" id="s-pass" /></div>
+              <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </form>
+            <p class="hint" id="settings-msg"></p>
+          </div>
+
+          <div class="card">
+            <h3>Données</h3>
+            <div class="report-actions">
+              <button class="btn btn-ghost" id="btn-reset-data">♻ Réinitialiser les données de démonstration</button>
+              <button class="btn btn-danger" id="btn-clear-data">🗑 Effacer toutes les données</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Journal des opérations</h3>
+            <p class="muted">Historique des actions effectuées sur la plateforme.</p>
+            <div class="table-scroll">
+              <table id="journal-table" class="table">
+                <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th></tr></thead>
+                <tbody id="journal-tbody"></tbody>
+              </table>
+            </div>
+            <div id="journal-empty" class="empty-state hidden"><p>📭 Aucune opération enregistrée.</p></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODALES
+       ============================================================ -->
+
+  <!-- Modal : Ajouter / modifier un versement -->
+  <div id="modal-payment" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3 id="payment-modal-title">Ajouter un versement</h3>
+        <button class="modal-close" data-close="modal-payment">✕</button>
+      </div>
+      <form id="payment-form" class="form" autocomplete="off">
+        <input type="hidden" id="p-id" value="" />
+        <input type="hidden" id="p-sub-id" value="" />
+        <div class="payment-target" id="payment-target"></div>
+        <div class="field">
+          <label for="p-montant">Montant (FCFA) *</label>
+          <input type="number" id="p-montant" min="0" step="1000" required />
+        </div>
+        <div class="field">
+          <label for="p-date">Date du versement *</label>
+          <input type="date" id="p-date" required />
+        </div>
+        <div class="field">
+          <label for="p-mode">Mode de paiement *</label>
+          <select id="p-mode" required>
+            <option value="">— Choisir —</option>
+            <option>Espèces</option>
+            <option>Mobile Money</option>
+            <option>Virement</option>
+            <option>Chèque</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="p-ref">Référence du paiement</label>
+          <input type="text" id="p-ref" placeholder="ex. REF-2026-001" />
+        </div>
+        <div class="field">
+          <label for="p-obs">Observation</label>
+          <textarea id="p-obs" rows="2" placeholder="Note éventuelle…"></textarea>
+        </div>
+        <div class="preview-box">
+          <div class="preview-item"><span>Versé après</span><strong id="pv-after">0 FCFA</strong></div>
+          <div class="preview-item"><span>Reste après</span><strong id="pv-reste-after">0 FCFA</strong></div>
+          <div class="preview-item"><span>Statut</span><span id="pv-statut-after" class="badge badge-en-cours">En cours</span></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-payment">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer le versement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal : Confirmation générique -->
+  <div id="modal-confirm" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-head">
+        <h3 id="confirm-title">Confirmation</h3>
+        <button class="modal-close" data-close="modal-confirm">✕</button>
+      </div>
+      <p id="confirm-message" class="confirm-msg">Voulez-vous vraiment continuer ?</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close="modal-confirm">Annuler</button>
+        <button type="button" class="btn btn-danger" id="confirm-ok">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast de notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Zone d'impression hors écran -->
+  <div id="print-area" class="print-area"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
