@@ -136,7 +136,7 @@ async function cloudRequest(method, path, body) {
     "Authorization": "Bearer " + (supabaseToken || supabaseConfig.anonKey),
     "Content-Type": "application/json",
     "Accept": "application/json",
-    "Prefer": "return=representation",
+    "Prefer": "return=representation,resolution=merge-duplicates",
   };
   const res = await fetch(base + "/rest/v1/" + path, {
     method: method,
@@ -237,63 +237,26 @@ async function hydrateFromCloud() {
   }
 }
 
-/**
- * Garantit que les identifiants des versements envoyés sont uniques dans le cloud.
- * Les anciennes données locales peuvent encore contenir un id réutilisé par
- * plusieurs souscripteurs ; on réattribue alors uniquement les ids en conflit.
- */
-async function prepareVersementsForRemote(sub) {
-  const remoteRows = await cloudRequest("GET", "versements?select=id,souscripteur_id");
-  const usedByOtherSubscribers = new Set(
-    (Array.isArray(remoteRows) ? remoteRows : [])
-      .filter((r) => Number(r.souscripteur_id) !== Number(sub.id))
-      .map((r) => Number(r.id))
-      .filter((id) => Number.isInteger(id) && id > 0)
-  );
-  const used = new Set(usedByOtherSubscribers);
-  let nextId = Math.max(0, ...Array.from(used)) + 1;
-  for (const versement of (sub.versements || [])) {
-    const currentId = Number(versement.id);
-    if (!Number.isInteger(currentId) || currentId <= 0 || used.has(currentId)) {
-      while (used.has(nextId)) nextId++;
-      versement.id = nextId++;
-    } else {
-      versement.id = currentId;
-    }
-    used.add(Number(versement.id));
-  }
-  saveData();
-}
-
 /** Synchronise un souscripteur et ses versements/lots vers le cloud. */
 async function syncSouscripteurRemote(sub) {
-  if (!isCloudEnabled()) return;
-  try {
-    // Met à jour / insère le souscripteur (upsert sur l'id).
-    await cloudRequest("POST", "souscripteurs?on_conflict=id", [toSouscripteurRow(sub, false)]);
-    // Remplace les versements puis les lots (simple et cohérent).
-    await prepareVersementsForRemote(sub);
-    await cloudRequest("DELETE", "versements?souscripteur_id=eq." + sub.id);
-    const verseRows = (sub.versements || []).map((v) => toVerseRow(sub.id, v));
-    if (verseRows.length) await cloudRequest("POST", "versements", verseRows);
-    await cloudRequest("DELETE", "lots?souscripteur_id=eq." + sub.id);
-    const lotRows = buildLotRowsToCloud(sub);
-    if (lotRows.length) await cloudRequest("POST", "lots", lotRows);
-  } catch (e) {
-    console.warn("Synchronisation cloud échouée :", e);
-    toast("Synchronisation cloud échouée — vérifiez votre connexion.", "error");
-  }
+  if (!isCloudEnabled()) return true;
+  // Met à jour / insère le souscripteur (upsert sur l'id).
+  await cloudRequest("POST", "souscripteurs?on_conflict=id", [toSouscripteurRow(sub, false)]);
+  // Remplace les versements puis les lots (simple et cohérent).
+  await cloudRequest("DELETE", "versements?souscripteur_id=eq." + sub.id);
+  const verseRows = (sub.versements || []).map((v) => toVerseRow(sub.id, v));
+  if (verseRows.length) await cloudRequest("POST", "versements", verseRows);
+  await cloudRequest("DELETE", "lots?souscripteur_id=eq." + sub.id);
+  const lotRows = buildLotRowsToCloud(sub);
+  if (lotRows.length) await cloudRequest("POST", "lots", lotRows);
+  return true;
 }
 
 /** Supprime un souscripteur (et ses dépendances) sur le cloud. */
 async function deleteSouscripteurRemote(id) {
-  if (!isCloudEnabled()) return;
-  try {
-    await cloudRequest("DELETE", "souscripteurs?id=eq." + id);
-  } catch (e) {
-    console.warn("Suppression cloud échouée :", e);
-    toast("Suppression cloud échouée.", "error");
-  }
+  if (!isCloudEnabled()) return true;
+  await cloudRequest("DELETE", "souscripteurs?id=eq." + id);
+  return true;
 }
 
 /** Supprime tous les souscripteurs présents sur le cloud. */
@@ -449,13 +412,13 @@ function saveLocal() { saveData(); }
  * (si la base Supabase est configurée). L'app reste réactive : le cloud est
  * synchronisé en arrière-plan.
  */
-function persist(sub) {
+async function persist(sub) {
   saveData();
-  if (sub && isCloudEnabled()) syncSouscripteurRemote(sub);
+  if (sub && isCloudEnabled()) await syncSouscripteurRemote(sub);
 }
-function persistDelete(id) {
+async function persistDelete(id) {
   saveData();
-  if (isCloudEnabled()) deleteSouscripteurRemote(id);
+  if (isCloudEnabled()) await deleteSouscripteurRemote(id);
 }
 
 /* Compteurs d'identifiants (maintien de l'unicité). */
@@ -1175,7 +1138,7 @@ function updatePreview() {
   $("#pv-statut").className = "badge " + STATUT_BADGE[st];
 }
 
-function submitSubscriber(e) {
+async function submitSubscriber(e) {
   e.preventDefault();
   const code = $("#f-code").value.trim();
   // Vérification d'unicité du code.
@@ -1212,7 +1175,6 @@ function submitSubscriber(e) {
     }
     savedSub = s;
     journalLog(`Modification du souscripteur ${payload.code}`);
-    toast("Souscripteur modifié avec succès.", "success");
   } else {
     const s = {
       id: nextSouscripteurId(),
@@ -1221,16 +1183,22 @@ function submitSubscriber(e) {
     };
     if (initial > 0) {
       s.versements.push({
-        id: 1, montant: initial, date: s.dateAdhesion || todayISO(),
+        id: nextVersementId(), montant: initial, date: s.dateAdhesion || todayISO(),
         mode: "Autre", ref: "", observation: "Versement initial",
       });
     }
     subscribers.push(s);
     savedSub = s;
     journalLog(`Ajout du souscripteur ${payload.code}`);
-    toast("Souscripteur ajouté avec succès.", "success");
   }
-  persist(savedSub);
+  try {
+    await persist(savedSub);
+  } catch (error) {
+    console.warn("Synchronisation cloud échouée :", error);
+    toast("Enregistrement local effectué, mais la synchronisation cloud a échoué.", "error");
+    return;
+  }
+  toast(editingId ? "Souscripteur modifié avec succès." : "Souscripteur ajouté avec succès.", "success");
   resetForm();
   goTo("souscripteurs");
   renderDashboard();
@@ -1242,9 +1210,13 @@ function confirmDeleteSubscriber(id) {
   if (!s) return;
   confirmAction(`Voulez-vous vraiment supprimer ce souscripteur (${s.nom.toUpperCase()} ${s.prenom}) ? Toutes ses données et ses versements seront supprimés.`, () => {
     subscribers = subscribers.filter((x) => x.id !== id);
-    persistDelete(id);
     journalLog(`Suppression du souscripteur ${s.code}`);
-    toast("Souscripteur supprimé.", "success");
+    persistDelete(id).then(() => {
+      toast("Souscripteur supprimé.", "success");
+    }).catch((error) => {
+      console.warn("Suppression cloud échouée :", error);
+      toast("Suppression locale effectuée, mais la suppression cloud a échoué.", "error");
+    });
     if (currentDetailId === id) currentDetailId = null;
     goTo("souscripteurs");
     renderSouscripteurs();
@@ -1285,7 +1257,7 @@ function updatePaymentPreview() {
   $("#pv-statut-after").className = "badge " + STATUT_BADGE[st];
 }
 
-function submitPayment(e) {
+async function submitPayment(e) {
   e.preventDefault();
   const subId = Number($("#p-sub-id").value);
   const payId = $("#p-id").value ? Number($("#p-id").value) : null;
@@ -1304,13 +1276,18 @@ function submitPayment(e) {
     const v = s.versements.find((x) => x.id === payId);
     Object.assign(v, payload);
     journalLog(`Modification du versement #${payId} de ${s.code}`);
-    toast("Versement modifié.", "success");
   } else {
     s.versements.push({ id: nextVersementId(), ...payload });
     journalLog(`Ajout d'un versement de ${fmtFCFA(payload.montant)} à ${s.code}`);
-    toast("Versement enregistré.", "success");
   }
-  persist(s);
+  try {
+    await persist(s);
+  } catch (error) {
+    console.warn("Synchronisation cloud échouée :", error);
+    toast("Versement enregistré localement, mais la synchronisation cloud a échoué.", "error");
+    return;
+  }
+  toast(payId ? "Versement modifié." : "Versement enregistré.", "success");
   closeModal("modal-payment");
   renderSouscripteurs();
   renderVersements();
@@ -1322,11 +1299,16 @@ function confirmDeletePayment(subId, payId) {
   const s = subscribers.find((x) => x.id === subId);
   if (!s) return;
   const v = s.versements.find((y) => y.id === payId);
-  confirmAction(`Voulez-vous vraiment supprimer ce versement de ${fmtFCFA(v.montant)} ?`, () => {
+  confirmAction(`Voulez-vous vraiment supprimer ce versement de ${fmtFCFA(v.montant)} ?`, async () => {
     s.versements = s.versements.filter((y) => y.id !== payId);
-    persist(s);
     journalLog(`Suppression du versement #${payId} de ${s.code}`);
-    toast("Versement supprimé.", "success");
+    try {
+      await persist(s);
+      toast("Versement supprimé.", "success");
+    } catch (error) {
+      console.warn("Synchronisation cloud échouée :", error);
+      toast("Suppression locale effectuée, mais la synchronisation cloud a échoué.", "error");
+    }
     renderSouscripteurs();
     renderVersements();
     if (currentDetailId === subId) openDetail(subId);
@@ -1684,7 +1666,9 @@ function bindEvents() {
       supabaseConfig = { url: url, anonKey: anon };
       LS.setItem(STORAGE_MODE_KEY, "cloud");
       $("#db-status").textContent = "Connexion en cours…";
-      const res = await testSupabaseConnection();
+      const res = supabaseToken
+        ? await testSupabaseConnection()
+        : { ok: true, msg: "Configuration enregistrée. Déconnectez-vous puis connectez-vous avec votre e-mail Supabase Auth." };
       $("#db-status").textContent = res.msg;
       if (res.ok) {
         LS.setItem(SUPABASE_CFG_KEY, JSON.stringify({ url: url, anonKey: anon }));
