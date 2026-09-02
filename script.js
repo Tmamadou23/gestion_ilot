@@ -237,6 +237,34 @@ async function hydrateFromCloud() {
   }
 }
 
+/**
+ * Garantit que les identifiants des versements envoyés sont uniques dans le cloud.
+ * Les anciennes données locales peuvent encore contenir un id réutilisé par
+ * plusieurs souscripteurs ; on réattribue alors uniquement les ids en conflit.
+ */
+async function prepareVersementsForRemote(sub) {
+  const remoteRows = await cloudRequest("GET", "versements?select=id,souscripteur_id");
+  const usedByOtherSubscribers = new Set(
+    (Array.isArray(remoteRows) ? remoteRows : [])
+      .filter((r) => Number(r.souscripteur_id) !== Number(sub.id))
+      .map((r) => Number(r.id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  );
+  const used = new Set(usedByOtherSubscribers);
+  let nextId = Math.max(0, ...Array.from(used)) + 1;
+  for (const versement of (sub.versements || [])) {
+    const currentId = Number(versement.id);
+    if (!Number.isInteger(currentId) || currentId <= 0 || used.has(currentId)) {
+      while (used.has(nextId)) nextId++;
+      versement.id = nextId++;
+    } else {
+      versement.id = currentId;
+    }
+    used.add(Number(versement.id));
+  }
+  saveData();
+}
+
 /** Synchronise un souscripteur et ses versements/lots vers le cloud. */
 async function syncSouscripteurRemote(sub) {
   if (!isCloudEnabled()) return;
@@ -244,6 +272,7 @@ async function syncSouscripteurRemote(sub) {
     // Met à jour / insère le souscripteur (upsert sur l'id).
     await cloudRequest("POST", "souscripteurs?on_conflict=id", [toSouscripteurRow(sub, false)]);
     // Remplace les versements puis les lots (simple et cohérent).
+    await prepareVersementsForRemote(sub);
     await cloudRequest("DELETE", "versements?souscripteur_id=eq." + sub.id);
     const verseRows = (sub.versements || []).map((v) => toVerseRow(sub.id, v));
     if (verseRows.length) await cloudRequest("POST", "versements", verseRows);
