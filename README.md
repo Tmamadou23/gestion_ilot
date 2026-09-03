@@ -42,7 +42,7 @@ ouvrez `index.html`.
 
 ### Recherche rapide
 - Barre en haut, résultat instantané par **nom**, **prénom**, **nom + prénom** ou **code**
-- Ouverture automatique de la fiche correspondante (ex. `TRAORÉ`, `LOT-001`)
+- Ouverture automatique de la fiche correspondante (ex. `TRAORÉ`, `AZ-001`)
 
 ### Fiche détaillée
 - Identité, lotissement, paiements, historique complet, barre de progression
@@ -51,6 +51,7 @@ ouvrez `index.html`.
 ### Souscripteurs (tableau)
 - Colonnes : Code, Nom/Prénom, Lots, Superficie, Prix total, Versé, Reste, Statut, Actions
 - Filtres par statut et par période, tri (nom / montant / reste), pagination
+- Le formulaire comprend aussi le champ **Îlot**, enregistré dans Supabase.
 
 ### Versements
 - Enregistrement de chaque versement (montant, date, mode, réf., observation)
@@ -67,12 +68,15 @@ ouvrez `index.html`.
 - Gestion du compte, déconnexion
 - Journal des opérations effectuées par l'administrateur
 
+Pour une base Supabase déjà créée, réexécutez `supabase-schema.sql` afin d'ajouter la colonne `ilot` sans supprimer les données existantes.
+
 ---
 
 ## 🧮 Calculs automatiques
 
 ```
-Prix total   = Nombre de lots × Prix unitaire
+Superficie totale = Superficie du lot
+Prix total   = Prix unitaire du lot
 Reste à payer = Prix total − Total des versements
 Statut       = Soldé  si reste ≤ 0
                En cours si 0 < versé < prix total
