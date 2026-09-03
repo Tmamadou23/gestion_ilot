@@ -196,6 +196,8 @@ function toSouscripteurRow(sub, nested) {
     code: sub.code,
     nom: sub.nom,
     prenom: sub.prenom,
+    ilot: sub.ilot || "",
+    numeros_lots: (sub.numerosLots || []).join(","),
     nombre_lots: Number(sub.nombreLots) || 0,
     superficie: Number(sub.superficie) || 0,
     prix_unitaire: Number(sub.prixUnitaire) || 0,
@@ -213,6 +215,8 @@ function fromSouscripteurRow(r) {
     code: r.code,
     nom: r.nom,
     prenom: r.prenom,
+    ilot: r.ilot || "",
+    numerosLots: String(r.numeros_lots || "").split(",").map((n) => n.trim()).filter(Boolean),
     nombreLots: Number(r.nombre_lots) || 0,
     superficie: Number(r.superficie) || 0,
     prixUnitaire: Number(r.prix_unitaire) || 0,
@@ -223,19 +227,27 @@ function fromSouscripteurRow(r) {
 /** Construit les lignes de la table `lots` à partir des données d'un souscripteur. */
 function buildLotRowsToCloud(sub) {
   const n = Number(sub.nombreLots) || 0;
+  const numbers = getLotNumbers(sub);
   const rows = [];
   for (let i = 1; i <= n; i++) {
     rows.push({
       id: sub.id * 1000 + i, // id déterministe et unique pour le lot
       souscripteur_id: sub.id,
       num_lot: i,
-      superficie: n ? Number(sub.superficie) / n : 0,
+      numero_lot: numbers[i - 1],
+      superficie: Number(sub.superficie) || 0,
       prix_unitaire: Number(sub.prixUnitaire) || 0,
       prix_total: Number(sub.prixUnitaire) || 0,
       statut: statut(sub),
     });
   }
   return rows;
+}
+
+function getLotNumbers(sub) {
+  const n = Number(sub.nombreLots) || 0;
+  const manual = Array.isArray(sub.numerosLots) ? sub.numerosLots : [];
+  return Array.from({ length: n }, (_, i) => manual[i] || `${sub.ilot || "LOT"}-${String(i + 1).padStart(2, "0")}`);
 }
 
 /* ----- Lecture / écriture depuis le cloud ----- */
@@ -356,6 +368,7 @@ function seedData() {
   return [
     {
       id: 1, code: "LOT-001", nom: "TUO", prenom: "Mamadou",
+      ilot: "",
       nombreLots: 8, superficie: 2400, prixUnitaire: 1000000, dateAdhesion: "2026-01-15",
       versements: [
         { id: 1, montant: 2000000, date: "2026-02-01", mode: "Espèces", ref: "ESP-001", observation: "Premier versement" },
@@ -365,6 +378,7 @@ function seedData() {
     },
     {
       id: 2, code: "LOT-002", nom: "KOUASSI", prenom: "Jean",
+      ilot: "",
       nombreLots: 4, superficie: 1200, prixUnitaire: 1000000, dateAdhesion: "2026-01-20",
       versements: [
         { id: 4, montant: 4000000, date: "2026-03-05", mode: "Virement", ref: "VIR-1180", observation: "Soldé en totalité" },
@@ -372,6 +386,7 @@ function seedData() {
     },
     {
       id: 3, code: "LOT-003", nom: "YAO", prenom: "Marie",
+      ilot: "",
       nombreLots: 2, superficie: 600, prixUnitaire: 1000000, dateAdhesion: "2026-02-12",
       versements: [
         { id: 5, montant: 500000, date: "2026-03-01", mode: "Espèces", ref: "ESP-210", observation: "" },
@@ -380,6 +395,7 @@ function seedData() {
     },
     {
       id: 4, code: "LOT-004", nom: "TRAORÉ", prenom: "Mamadou",
+      ilot: "",
       nombreLots: 2, superficie: 1000, prixUnitaire: 2500000, dateAdhesion: "2026-03-15",
       versements: [
         { id: 7, montant: 1000000, date: "2026-03-15", mode: "Espèces", ref: "ESP-315", observation: "Acompte" },
@@ -389,6 +405,7 @@ function seedData() {
     },
     {
       id: 5, code: "LOT-005", nom: "KONE", prenom: "Awa",
+      ilot: "",
       nombreLots: 3, superficie: 900, prixUnitaire: 1000000, dateAdhesion: "2026-04-02",
       versements: [],
     },
@@ -635,7 +652,7 @@ function renderDashboard() {
   const totalAttendu = subscribers.reduce((s, x) => s + prixTotal(x), 0);
   const totalEncaisse = subscribers.reduce((s, x) => s + totalVerse(x), 0);
   const totalReste = totalAttendu - totalEncaisse;
-  const totalSuperficie = subscribers.reduce((s, x) => s + Number(x.superficie || 0), 0);
+  const totalSuperficie = subscribers.reduce((s, x) => s + (Number(x.nombreLots) || 0) * (Number(x.superficie) || 0), 0);
 
   $("#stat-cards").innerHTML = `
     ${statCard("👥", "blue", "Souscripteurs", total, "enregistrés", "total")}
@@ -784,7 +801,7 @@ function rowHTML(s) {
       <td><span class="code-cell">${esc(s.code)}</span></td>
       <td><span class="name-cell">${esc(s.nom.toUpperCase())} ${esc(s.prenom)}</span></td>
       <td class="num">${s.nombreLots}</td>
-      <td class="num">${fmtSuperficie(s.superficie)}</td>
+      <td class="num">${fmtSuperficie((Number(s.nombreLots) || 0) * (Number(s.superficie) || 0))}</td>
       <td class="num">${fmtFCFA(prixTotal(s))}</td>
       <td class="num"><strong style="color:var(--vert)">${fmtFCFA(totalVerse(s))}</strong></td>
       <td class="num"><strong style="color:${statut(s)==="soldé"?"var(--vert)":"var(--rouge)"}">${fmtFCFA(Math.max(0,resteAPayer(s)))}</strong></td>
@@ -822,7 +839,7 @@ function filterAndSort() {
     if (f.to && s.dateAdhesion && s.dateAdhesion > f.to) return false;
     if (f.q) {
       const q = f.q.toLowerCase();
-      const hay = (s.nom + " " + s.prenom + " " + s.code).toLowerCase();
+      const hay = (s.nom + " " + s.prenom + " " + s.code + " " + (s.ilot || "")).toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -881,6 +898,7 @@ function openDetail(id) {
           <div class="detail-row"><span class="dl-label">Nom</span><span class="dl-value">${esc(s.nom.toUpperCase())}</span></div>
           <div class="detail-row"><span class="dl-label">Prénom</span><span class="dl-value">${esc(s.prenom)}</span></div>
           <div class="detail-row"><span class="dl-label">Code</span><span class="dl-value code-cell">${esc(s.code)}</span></div>
+          <div class="detail-row"><span class="dl-label">Îlot</span><span class="dl-value">${esc(s.ilot || "—")}</span></div>
           <div class="detail-row"><span class="dl-label">Date d'adhésion</span><span class="dl-value">${fmtDate(s.dateAdhesion)}</span></div>
         </div>
       </div>
@@ -889,7 +907,8 @@ function openDetail(id) {
         <h3>🧱 Lotissement</h3>
         <div class="detail-list">
           <div class="detail-row"><span class="dl-label">Nombre de lots</span><span class="dl-value">${s.nombreLots}</span></div>
-          <div class="detail-row"><span class="dl-label">Superficie</span><span class="dl-value">${fmtSuperficie(s.superficie)}</span></div>
+          <div class="detail-row"><span class="dl-label">Superficie par lot</span><span class="dl-value">${fmtSuperficie(s.superficie)}</span></div>
+          <div class="detail-row"><span class="dl-label">Superficie totale</span><span class="dl-value">${fmtSuperficie((Number(s.nombreLots) || 0) * (Number(s.superficie) || 0))}</span></div>
           <div class="detail-row"><span class="dl-label">Prix unitaire</span><span class="dl-value">${fmtFCFA(s.prixUnitaire)}</span></div>
           <div class="detail-row"><span class="dl-label">Prix total</span><span class="dl-value">${fmtFCFA(prixTotal(s))}</span></div>
         </div>
@@ -933,13 +952,14 @@ function openDetail(id) {
 /** Génère les lignes de lots individuelles d'un souscripteur. */
 function lotRows(s) {
   const n = Number(s.nombreLots) || 0;
+  const numbers = getLotNumbers(s);
   if (n <= 0) return `<tr><td colspan="4" class="muted" style="text-align:center">Aucun lot</td></tr>`;
   let html = "";
   for (let i = 1; i <= n; i++) {
     html += `
       <tr>
-        <td><span class="code-cell">${esc(s.code)}-${String(i).padStart(2, "0")}</span></td>
-        <td class="num">${fmtSuperficie(s.superficie ? s.superficie / n : 0)}</td>
+        <td><span class="code-cell">${esc(numbers[i - 1])}</span></td>
+        <td class="num">${fmtSuperficie(s.superficie)}</td>
         <td class="num">${fmtFCFA(s.prixUnitaire)}</td>
         <td class="num">${fmtFCFA(s.prixUnitaire)}</td>
       </tr>`;
@@ -977,12 +997,13 @@ function renderLots() {
   const all = [];
   subscribers.forEach((s) => {
     const n = Number(s.nombreLots) || 0;
+    const numbers = getLotNumbers(s);
     for (let i = 1; i <= n; i++) {
-      all.push({ s, num: i });
+      all.push({ s, num: i, numero: numbers[i - 1] });
     }
   });
   const totalLots = all.length;
-  const totalSuperficie = subscribers.reduce((x, s) => x + Number(s.superficie || 0), 0);
+  const totalSuperficie = subscribers.reduce((x, s) => x + (Number(s.nombreLots) || 0) * (Number(s.superficie) || 0), 0);
   const totalPrix = subscribers.reduce((x, s) => x + prixTotal(s), 0);
   const soldes = all.filter(({ s }) => statut(s) === "soldé").length;
   $("#lots-stats").innerHTML = `
@@ -993,12 +1014,12 @@ function renderLots() {
 
   $("#lots-empty").classList.toggle("hidden", all.length > 0);
   const st = renderLotsStatus(s => statut(s));
-  $("#lots-tbody").innerHTML = all.map(({ s, num }) => `
+  $("#lots-tbody").innerHTML = all.map(({ s, num, numero }) => `
     <tr class="clickable" data-id="${s.id}">
-      <td><span class="code-cell">${esc(s.code)}-${String(num).padStart(2, "0")}</span></td>
+      <td><span class="code-cell">${esc(numero)}</span></td>
       <td><span class="name-cell">${esc(s.nom.toUpperCase())} ${esc(s.prenom)}</span></td>
       <td><span class="code-cell">${esc(s.code)}</span></td>
-      <td class="num">${fmtSuperficie(s.superficie ? s.superficie / (Number(s.nombreLots)||1) : 0)}</td>
+      <td class="num">${fmtSuperficie(s.superficie)}</td>
       <td class="num">${fmtFCFA(s.prixUnitaire)}</td>
       <td class="num">${fmtFCFA(s.prixUnitaire)}</td>
       <td>${badgeHTML(s)}</td>
@@ -1133,6 +1154,8 @@ function loadFormForEdit(id) {
   $("#f-nom").value = s.nom;
   $("#f-prenom").value = s.prenom;
   $("#f-code").value = s.code;
+  $("#f-ilot").value = s.ilot || "";
+  $("#f-numeros-lots").value = (s.numerosLots || []).join(", ");
   $("#f-date").value = s.dateAdhesion;
   $("#f-lots").value = s.nombreLots;
   $("#f-superficie").value = s.superficie;
@@ -1171,6 +1194,8 @@ async function submitSubscriber(e) {
     code: code,
     nom: $("#f-nom").value.trim(),
     prenom: $("#f-prenom").value.trim(),
+    ilot: $("#f-ilot").value.trim(),
+    numerosLots: $("#f-numeros-lots").value.split(",").map((n) => n.trim()).filter(Boolean),
     nombreLots: Number($("#f-lots").value) || 0,
     superficie: Number($("#f-superficie").value) || 0,
     prixUnitaire: Number($("#f-prix").value) || 0,
@@ -1353,9 +1378,9 @@ function download(filename, content, mime) {
 }
 
 function exportCSV() {
-  const header = ["Code", "Nom", "Prénom", "Lots", "Superficie", "Prix unitaire", "Prix total", "Total versé", "Reste à payer", "Statut", "Date d'adhésion"];
+  const header = ["Code", "Nom", "Prénom", "Îlot", "Lots", "Superficie", "Prix unitaire", "Prix total", "Total versé", "Reste à payer", "Statut", "Date d'adhésion"];
   const lines = subscribers.map((s) => [
-    s.code, s.nom, s.prenom, s.nombreLots, s.superficie, s.prixUnitaire,
+    s.code, s.nom, s.prenom, s.ilot || "", s.nombreLots, s.superficie, s.prixUnitaire,
     prixTotal(s), totalVerse(s), Math.max(0, resteAPayer(s)), STATUT_LABEL[statut(s)],
     fmtDate(s.dateAdhesion),
   ]);
@@ -1383,7 +1408,7 @@ function buildPrintHTML(s) {
     <tr><td>${i + 1}</td><td>${fmtDate(v.date)}</td><td>${esc(v.mode)}</td><td style="text-align:right">${fmtFCFA(v.montant)}</td><td>${esc(v.ref || "—")}</td><td>${esc(v.observation || "—")}</td></tr>`
   ).join("");
   const lotRowsHtml = Array.from({ length: Number(s.nombreLots) || 0 }, (_, i) => `
-    <tr><td>${esc(s.code)}-${String(i + 1).padStart(2, "0")}</td><td>${fmtSuperficie(s.superficie ? s.superficie / (Number(s.nombreLots)||1) : 0)}</td><td style="text-align:right">${fmtFCFA(s.prixUnitaire)}</td></tr>`).join("");
+    <tr><td>${esc(getLotNumbers(s)[i])}</td><td>${fmtSuperficie(s.superficie)}</td><td style="text-align:right">${fmtFCFA(s.prixUnitaire)}</td></tr>`).join("");
 
   return `
     <style>
@@ -1412,13 +1437,15 @@ function buildPrintHTML(s) {
       <div><div class="muted">Nom</div><strong>${esc(s.nom.toUpperCase())}</strong></div>
       <div><div class="muted">Prénom</div><strong>${esc(s.prenom)}</strong></div>
       <div><div class="muted">Code</div><strong>${esc(s.code)}</strong></div>
+      <div><div class="muted">Îlot</div><strong>${esc(s.ilot || "—")}</strong></div>
       <div><div class="muted">Date d'adhésion</div><strong>${fmtDate(s.dateAdhesion)}</strong></div>
     </div>
 
     <div class="t">LOTISSEMENT</div>
     <div class="grid">
       <div><div class="muted">Nombre de lots</div><strong>${s.nombreLots}</strong></div>
-      <div><div class="muted">Superficie</div><strong>${fmtSuperficie(s.superficie)}</strong></div>
+      <div><div class="muted">Superficie par lot</div><strong>${fmtSuperficie(s.superficie)}</strong></div>
+      <div><div class="muted">Superficie totale</div><strong>${fmtSuperficie((Number(s.nombreLots) || 0) * (Number(s.superficie) || 0))}</strong></div>
       <div><div class="muted">Prix unitaire</div><strong>${fmtFCFA(s.prixUnitaire)}</strong></div>
       <div><div class="muted">Prix total</div><strong>${fmtFCFA(prixTotal(s))}</strong></div>
     </div>
