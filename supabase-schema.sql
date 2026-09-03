@@ -51,7 +51,7 @@ create table if not exists lots (
   id               bigint primary key,       -- id fourni par l'application
   souscripteur_id  bigint references souscripteurs(id) on delete cascade,
   num_lot          integer not null,
-  numero_lot       text not null default '',
+  numero_lot       integer not null default 0,
   superficie       numeric not null default 0, -- superficie du lot
   prix_unitaire    numeric not null default 0,
   prix_total       numeric not null default 0,
@@ -59,7 +59,11 @@ create table if not exists lots (
   created_at       timestamptz default now()
 );
 create index if not exists idx_lots_souscripteur on lots(souscripteur_id);
-alter table lots add column if not exists numero_lot text not null default '';
+alter table lots add column if not exists numero_lot integer not null default 0;
+alter table lots alter column numero_lot drop default;
+alter table lots alter column numero_lot type integer
+  using coalesce(nullif(regexp_replace(numero_lot::text, '[^0-9]', '', 'g'), ''), '0')::integer;
+alter table lots alter column numero_lot set default 0;
 
 -- ----------------------------------------------------------------------------
 -- 4) VERSEMENTS (relations 1-N vers souscripteurs)
@@ -90,12 +94,16 @@ alter table versements    enable row level security;
 alter table utilisateurs  enable row level security;
 
 -- Politiques "authenticated" (recommandé) : accès complet pour les connectés.
+drop policy if exists "authenticated_all_souscripteurs" on souscripteurs;
 create policy "authenticated_all_souscripteurs" on souscripteurs
   for all to authenticated using (true) with check (true);
+drop policy if exists "authenticated_all_lots" on lots;
 create policy "authenticated_all_lots" on lots
   for all to authenticated using (true) with check (true);
+drop policy if exists "authenticated_all_versements" on versements;
 create policy "authenticated_all_versements" on versements
   for all to authenticated using (true) with check (true);
+drop policy if exists "authenticated_all_utilisateurs" on utilisateurs;
 create policy "authenticated_all_utilisateurs" on utilisateurs
   for all to authenticated using (true) with check (true);
 
