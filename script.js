@@ -1138,6 +1138,7 @@ function resetForm() {
   $("#btn-save-form").textContent = "Enregistrer le souscripteur";
   $("#subscriber-form").reset();
   $("#f-lots").value = 1;
+  renderLotNumberFields();
   $("#f-date").value = todayISO();
   $("#f-code").value = nextCode();
   $("#f-code-suggest").textContent = nextCode();
@@ -1155,14 +1156,30 @@ function loadFormForEdit(id) {
   $("#f-prenom").value = s.prenom;
   $("#f-code").value = s.code;
   $("#f-ilot").value = s.ilot || "";
-  $("#f-numeros-lots").value = (s.numerosLots || []).join(", ");
   $("#f-date").value = s.dateAdhesion;
   $("#f-lots").value = s.nombreLots;
+  renderLotNumberFields(s.numerosLots || []);
   $("#f-superficie").value = s.superficie;
   $("#f-prix").value = s.prixUnitaire;
   $("#f-verse-initial").value = "";
   updatePreview();
   goTo("ajouter");
+}
+
+function renderLotNumberFields(values = []) {
+  const container = $("#lot-numbers-fields");
+  if (!container) return;
+  const count = Number($("#f-lots").value) || 0;
+  container.innerHTML = Array.from({ length: count }, (_, index) => `
+    <div class="field">
+      <label for="f-lot-number-${index + 1}">Numéro du lot ${index + 1}</label>
+      <input type="text" id="f-lot-number-${index + 1}" name="lot-number-${index + 1}"
+        value="${esc(values[index] || "")}" placeholder="ex. A-${String(index + 1).padStart(2, "0")}" required />
+    </div>`).join("");
+}
+
+function getFormLotNumbers() {
+  return $$("#lot-numbers-fields input").map((input) => input.value.trim()).filter(Boolean);
 }
 
 /** Met à jour l'aperçu des calculs en temps réel dans le formulaire. */
@@ -1184,6 +1201,12 @@ function updatePreview() {
 async function submitSubscriber(e) {
   e.preventDefault();
   const code = $("#f-code").value.trim();
+  const expectedLotCount = Number($("#f-lots").value) || 0;
+  const lotNumbers = getFormLotNumbers();
+  if (lotNumbers.length !== expectedLotCount) {
+    toast("Renseignez le numéro de chaque lot.", "error");
+    return;
+  }
   // Vérification d'unicité du code.
   const dup = subscribers.find((s) => s.code.toLowerCase() === code.toLowerCase() && s.id !== editingId);
   if (dup) {
@@ -1195,7 +1218,7 @@ async function submitSubscriber(e) {
     nom: $("#f-nom").value.trim(),
     prenom: $("#f-prenom").value.trim(),
     ilot: $("#f-ilot").value.trim(),
-    numerosLots: $("#f-numeros-lots").value.split(",").map((n) => n.trim()).filter(Boolean),
+    numerosLots: lotNumbers,
     nombreLots: Number($("#f-lots").value) || 0,
     superficie: Number($("#f-superficie").value) || 0,
     prixUnitaire: Number($("#f-prix").value) || 0,
@@ -1649,7 +1672,11 @@ function bindEvents() {
   $("#sort-select").addEventListener("change", (e) => { listState.sort = e.target.value; listState.page = 1; renderSouscripteurs(); });
 
   // ----- Formulaire souscripteur -----
-  ["#f-lots", "#f-prix", "#f-verse-initial"].forEach((s) => $(s).addEventListener("input", updatePreview));
+  $("#f-lots").addEventListener("input", () => {
+    renderLotNumberFields(getFormLotNumbers());
+    updatePreview();
+  });
+  ["#f-prix", "#f-verse-initial"].forEach((s) => $(s).addEventListener("input", updatePreview));
   $("#f-code-auto").addEventListener("click", () => { const c = nextCode(); $("#f-code").value = c; $("#f-code-suggest").textContent = c; });
   $("#subscriber-form").addEventListener("submit", submitSubscriber);
   $("#btn-cancel-form").addEventListener("click", () => { resetForm(); goTo("souscripteurs"); });
@@ -1817,6 +1844,7 @@ function setDefaultInputs() {
   $("#f-date").value = todayISO();
   $("#f-code").value = nextCode();
   $("#f-code-suggest").textContent = nextCode();
+  renderLotNumberFields();
 }
 
 /* Démarrage au chargement de la page. */
