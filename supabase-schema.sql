@@ -32,6 +32,7 @@ create table if not exists souscripteurs (
   prenom        text not null,
   ilot          text not null default '',
   numeros_lots  text not null default '',
+  superficies_lots text not null default '',
   nombre_lots   integer not null default 1,
   superficie    numeric not null default 0, -- superficie d'un lot
   prix_unitaire numeric not null default 0,
@@ -43,6 +44,9 @@ create table if not exists souscripteurs (
 -- Migration pour une table souscripteurs déjà créée avant l'ajout de l'îlot.
 alter table souscripteurs add column if not exists ilot text not null default '';
 alter table souscripteurs add column if not exists numeros_lots text not null default '';
+alter table souscripteurs add column if not exists superficies_lots text not null default '';
+alter table souscripteurs alter column nombre_lots set default 1;
+update souscripteurs set nombre_lots = 1 where nombre_lots is null or nombre_lots <> 1;
 
 -- ----------------------------------------------------------------------------
 -- 3) LOTS (associés à un souscripteur, relation 1-N)
