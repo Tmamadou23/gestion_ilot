@@ -30,13 +30,19 @@ create table if not exists souscripteurs (
   code          text unique not null,
   nom           text not null,
   prenom        text not null,
+  ilot          text not null default '',
+  numeros_lots  text not null default '',
   nombre_lots   integer not null default 1,
-  superficie    numeric not null default 0,
+  superficie    numeric not null default 0, -- superficie d'un lot
   prix_unitaire numeric not null default 0,
   date_adhesion date not null default current_date,
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
+
+-- Migration pour une table souscripteurs déjà créée avant l'ajout de l'îlot.
+alter table souscripteurs add column if not exists ilot text not null default '';
+alter table souscripteurs add column if not exists numeros_lots text not null default '';
 
 -- ----------------------------------------------------------------------------
 -- 3) LOTS (associés à un souscripteur, relation 1-N)
@@ -45,13 +51,15 @@ create table if not exists lots (
   id               bigint primary key,       -- id fourni par l'application
   souscripteur_id  bigint references souscripteurs(id) on delete cascade,
   num_lot          integer not null,
-  superficie       numeric not null default 0,
+  numero_lot       text not null default '',
+  superficie       numeric not null default 0, -- superficie du lot
   prix_unitaire    numeric not null default 0,
   prix_total       numeric not null default 0,
   statut           text not null default 'en cours',
   created_at       timestamptz default now()
 );
 create index if not exists idx_lots_souscripteur on lots(souscripteur_id);
+alter table lots add column if not exists numero_lot text not null default '';
 
 -- ----------------------------------------------------------------------------
 -- 4) VERSEMENTS (relations 1-N vers souscripteurs)
