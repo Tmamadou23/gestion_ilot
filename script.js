@@ -1257,7 +1257,7 @@ async function submitSubscriber(e) {
     await persist(savedSub);
   } catch (error) {
     console.warn("Synchronisation cloud échouée :", error);
-    toast("Enregistrement local effectué, mais la synchronisation cloud a échoué.", "error");
+    toast("Cloud : " + (error.message || "synchronisation impossible"), "error");
     return;
   }
   toast(editingId ? "Souscripteur modifié avec succès." : "Souscripteur ajouté avec succès.", "success");
