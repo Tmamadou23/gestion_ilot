@@ -247,7 +247,7 @@ function buildLotRowsToCloud(sub) {
 function getLotNumbers(sub) {
   const n = Number(sub.nombreLots) || 0;
   const manual = Array.isArray(sub.numerosLots) ? sub.numerosLots : [];
-  return Array.from({ length: n }, (_, i) => manual[i] || `${sub.ilot || "LOT"}-${String(i + 1).padStart(2, "0")}`);
+  return Array.from({ length: n }, (_, i) => manual[i] || i + 1);
 }
 
 /* ----- Lecture / écriture depuis le cloud ----- */
@@ -529,14 +529,14 @@ function pourcentPaiement(sub) {
   return Math.min(100, (totalVerse(sub) / t) * 100);
 }
 
-/** Génère le prochain code LOT-XXX disponible. */
+/** Génère le prochain code AZ-XXX disponible. */
 function nextCode() {
   let max = 0;
   subscribers.forEach((s) => {
-    const m = /^LOT-(\d+)$/i.exec(s.code || "");
+    const m = /^AZ-(\d+)$/i.exec(s.code || "");
     if (m) max = Math.max(max, parseInt(m[1], 10));
   });
-  return "LOT-" + String(max + 1).padStart(3, "0");
+  return "AZ-" + String(max + 1).padStart(3, "0");
 }
 
 /* ----------------------------------------------------------------------------
@@ -1173,13 +1173,13 @@ function renderLotNumberFields(values = []) {
   container.innerHTML = Array.from({ length: count }, (_, index) => `
     <div class="field">
       <label for="f-lot-number-${index + 1}">Numéro du lot ${index + 1}</label>
-      <input type="text" id="f-lot-number-${index + 1}" name="lot-number-${index + 1}"
-        value="${esc(values[index] || "")}" placeholder="ex. A-${String(index + 1).padStart(2, "0")}" required />
+      <input type="number" id="f-lot-number-${index + 1}" name="lot-number-${index + 1}"
+        min="1" step="1" value="${esc(values[index] || "")}" placeholder="ex. ${index + 1}" required />
     </div>`).join("");
 }
 
 function getFormLotNumbers() {
-  return $$("#lot-numbers-fields input").map((input) => input.value.trim()).filter(Boolean);
+  return $$("#lot-numbers-fields input").map((input) => Number(input.value)).filter((number) => Number.isInteger(number) && number > 0);
 }
 
 /** Met à jour l'aperçu des calculs en temps réel dans le formulaire. */
@@ -1205,6 +1205,10 @@ async function submitSubscriber(e) {
   const lotNumbers = getFormLotNumbers();
   if (lotNumbers.length !== expectedLotCount) {
     toast("Renseignez le numéro de chaque lot.", "error");
+    return;
+  }
+  if (new Set(lotNumbers).size !== lotNumbers.length) {
+    toast("Chaque numéro de lot doit être différent.", "error");
     return;
   }
   // Vérification d'unicité du code.
