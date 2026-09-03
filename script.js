@@ -104,8 +104,8 @@ const STORAGE_MODE_KEY = "gestilot.storage.mode";
 // Configuration publique du déploiement GitHub Pages.
 // Remplacez ces deux valeurs par celles de votre projet Supabase.
 const PUBLIC_SUPABASE_CONFIG = {
-  url: "",
-  anonKey: "",
+  url: "https://kwkbtysezjqtthnmpspk.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3a2J0eXNlempxdHRobm1wc3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNDY4ODQsImV4cCI6MjEwMzkyMjg4NH0.qVzGqdxPkFzdQjYky2mcHz8VUMxjmBcZ6uz3sIXAcUA",
 };
 
 /** Configuration Supabase : { url, anonKey }. Chargée depuis le stockage. */
