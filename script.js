@@ -101,6 +101,13 @@ const SUPABASE_CFG_KEY = "gestilot.supabase";
 const SUPABASE_TOKEN_KEY = "gestilot.supabase.token";
 const STORAGE_MODE_KEY = "gestilot.storage.mode";
 
+// Configuration publique du déploiement GitHub Pages.
+// Remplacez ces deux valeurs par celles de votre projet Supabase.
+const PUBLIC_SUPABASE_CONFIG = {
+  url: "",
+  anonKey: "",
+};
+
 /** Configuration Supabase : { url, anonKey }. Chargée depuis le stockage. */
 let supabaseConfig = { url: "", anonKey: "" };
 /** Jeton d'accès de session (Supabase Auth). Vide si non connecté via cloud. */
@@ -108,6 +115,11 @@ let supabaseToken = "";
 
 /** Charge la configuration Supabase enregistrée. */
 function loadSupabaseConfig() {
+  if (PUBLIC_SUPABASE_CONFIG.url && PUBLIC_SUPABASE_CONFIG.anonKey) {
+    supabaseConfig = { ...PUBLIC_SUPABASE_CONFIG };
+    LS.setItem(STORAGE_MODE_KEY, "cloud");
+    return;
+  }
   try {
     const cfg = JSON.parse(LS.getItem(SUPABASE_CFG_KEY));
     if (cfg && cfg.url && cfg.anonKey) supabaseConfig = cfg;
@@ -116,7 +128,12 @@ function loadSupabaseConfig() {
 
 /** True si une base cloud est configurée. */
 function isCloudEnabled() {
-  return LS.getItem(STORAGE_MODE_KEY) === "cloud" && !!(supabaseConfig.url && supabaseConfig.anonKey);
+  return !!(supabaseConfig.url && supabaseConfig.anonKey)
+    && (LS.getItem(STORAGE_MODE_KEY) === "cloud" || isPublicDeployment());
+}
+
+function isPublicDeployment() {
+  return window.location.hostname.endsWith("github.io");
 }
 
 /** Restaure le jeton de session depuis le stockage de session. */
@@ -539,6 +556,7 @@ async function login(user, pass) {
       return false;
     }
   }
+  if (isPublicDeployment()) return false;
   // Mode local : identifiant + mot de passe administrateur.
   const auth = getAuth();
   if (user.trim() === auth.user && pass === auth.pass) {
@@ -1035,6 +1053,8 @@ function updateLoginHint() {
   if (!h) return;
   if (isCloudEnabled()) {
     h.innerHTML = '<strong>Mode cloud :</strong> connectez-vous avec votre <strong>e-mail</strong> et votre <strong>mot de passe</strong> Supabase Auth.';
+  } else if (isPublicDeployment()) {
+    h.innerHTML = '<strong>Configuration cloud manquante :</strong> renseignez les identifiants Supabase dans le code avant de publier cette application.';
   } else {
     h.innerHTML = 'Accès par défaut (local) : identifiant <strong>admin</strong> — mot de passe <strong>admin123</strong>.';
   }
