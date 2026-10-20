@@ -1151,7 +1151,6 @@ function resetForm() {
   $("#f-numero-lot").value = "";
   $("#f-date").value = todayISO();
   $("#f-code").value = nextCode();
-  $("#f-code-suggest").textContent = nextCode();
   updatePreview();
 }
 
@@ -1667,7 +1666,7 @@ function bindEvents() {
 
   // ----- Formulaire souscripteur -----
   ["#f-prix", "#f-verse-initial"].forEach((s) => $(s).addEventListener("input", updatePreview));
-  $("#f-code-auto").addEventListener("click", () => { const c = nextCode(); $("#f-code").value = c; $("#f-code-suggest").textContent = c; });
+  $("#f-code-auto").addEventListener("click", () => { const c = nextCode(); $("#f-code").value = c; });
   $("#subscriber-form").addEventListener("submit", submitSubscriber);
   $("#btn-cancel-form").addEventListener("click", () => { resetForm(); goTo("souscripteurs"); });
 
@@ -1833,7 +1832,7 @@ async function init() {
 function setDefaultInputs() {
   $("#f-date").value = todayISO();
   $("#f-code").value = nextCode();
-  $("#f-code-suggest").textContent = nextCode();
+  // $("#f-code-suggest").textContent = nextCode();
 }
 
 /* Démarrage au chargement de la page. */
