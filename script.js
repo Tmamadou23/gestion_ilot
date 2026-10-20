@@ -1666,7 +1666,7 @@ function bindEvents() {
 
   // ----- Formulaire souscripteur -----
   ["#f-prix", "#f-verse-initial"].forEach((s) => $(s).addEventListener("input", updatePreview));
-  $("#f-code-auto").addEventListener("click", () => { const c = nextCode(); $("#f-code").value = c; });
+  // $("#f-code-auto").addEventListener("click", () => { const c = nextCode(); $("#f-code").value = c; });
   $("#subscriber-form").addEventListener("submit", submitSubscriber);
   $("#btn-cancel-form").addEventListener("click", () => { resetForm(); goTo("souscripteurs"); });
 
